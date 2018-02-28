@@ -60,7 +60,7 @@ $totframes=214;
 my @args_table = (#["-clobber","boolean",undef,\$clobber,"clobber all output files (currently not implemented, sorry)"],#HERE not implemented
 		  ["-diff","string",6,\@diff_inputs,"diffusion input gzipped nii files in order b=low AP b=mid AP b=high AP b=low PA b=mid PA b=high PA"],
     ["-bvecs","string",6,\@bvecs_input,"bvec files in order b=low AP b=mid AP b=high AP b=low PA b=mid PA b=high PA"], 
-["-anat","string",2,\@anatfiles,"anatomical (UNI MP2RAGE) nii file and minc file."],
+["-anat","string",2,\@anatfiles,"anatomical (T1w pre-contrast) nii file and minc file."],
     ["-MTsat","string",3,\@MTsat,"MTsat input files in order MTW PDW T1W.  **minc** files."],
     ["-B1","string",2,\@B1files,"ep_seg_se_b1 60 and 120 for AFI B1 calculation. minc files. needed for all MT"],
    #-acqparams","string",1,\$acq,"acq params for topup"],
@@ -105,7 +105,7 @@ foreach $b (@bvecs_input){
 }
 print BVEC "@x\n@y\n@z\n";
 $anat=$anatfiles[0];
-$MPRAGE_im_mnc=$anatfiles[1];
+$T1w_im_mnc=$anatfiles[1];
 
 
 
@@ -371,23 +371,23 @@ $done=0;
 if (-d "segmentation")
 {
     $done=1;
-    print "standard_pipeline.pl 1 1 $MPRAGE_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
+    print "standard_pipeline.pl 1 1 $T1w_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
 }
 
 
 if ($done==0)
 {
   print "--Doing segmentation--\n";
-  print "standard_pipeline.pl 1 1 $MPRAGE_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
-  `standard_pipeline.pl 1 1 $MPRAGE_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/`;
+  print "standard_pipeline.pl 1 1 $T1w_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
+  `standard_pipeline.pl 1 1 $T1w_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/`;
 }
 #get xfm from t1 to diffusion:
 
 #DO: do I ned to n3 the anat first for this to work?  does flirt?
-print "minctracc -clob -identity -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber\n";
-`minctracc -clob -identity -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber`;
-print "minctracc -clob -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
-`minctracc -clob -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
+print "minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber\n";
+`minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber`;
+print "minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
+`minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
 
 `xfminvert dti-to-t1b.xfm str2diff.xfm`;
 
@@ -516,7 +516,7 @@ if ($doing_MTsat==1) {
 
 
   #register MT images to anat (registered with diffusion) and resample to diffspace sampling:
-  #HERE possibly register to the original MPRAGE instead of the downsampled MPRAGE
+  #HERE possibly register to the original T1w instead of the downsampled T1w
   print "minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0\n";
   `minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0`;
   print "minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0\n";
