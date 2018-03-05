@@ -391,7 +391,7 @@ print "minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold
 
 `xfminvert dti-to-t1b.xfm str2diff.xfm`;
 
-`rm -f dti-to-t1b.xfm dti-to-t1.xfm`;
+`rm -f dti-to-t1.xfm`;
 
 
 #DO write a converter for the fsl .mat xfm instead of redoing it.
@@ -698,18 +698,6 @@ return $file_no_ext;
 
 # NOTES
 
-# a) if using qMT:
-
-# grab new qMTLab occasionally from github (DO: set up automatic)
-
-# requires these files, which I have in g-ratio_pipeline dir:
-
-# BICProtocol.mat: note offsets in Hz, angles are degrees if making new protocol.
-
-# BICFitOpt.mat: does this:
-# chooses SledPikeRP (now is default)
-# set F maximum to 0.5
-# I don't set R1r=1.0 (now is default; more common in SledPikeRP) - I have R1r=R1f.
 
 
 # b) outputs currently go in working directory; should clean this up with more output directories.
