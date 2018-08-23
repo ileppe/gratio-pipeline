@@ -36,8 +36,9 @@ USAGE
 #defaults:
 $doing_MTsat=1;
 $MTW="";
-$scale_MTsat=0.089; #from comparison to F in mb110515; empirical .  by comparing to F with scaling factor 1.5!!!
-
+#$scale_MTsat=0.089; #from comparison to F in mb110515; empirical .  by comparing to F with scaling factor 1.5!!!
+$scale_MTsat=0.121;# by empirically trying to get mvf ~0.3 in WM of a control
+ 
 
 #presets: DO: must create these from the inputs. these are currently hardcoded; links are for last thing processed
 $acq="/data_/qc/ilana/for-others/repeat-lesions/acqparams.txt";
@@ -56,11 +57,13 @@ $index="/data_/qc/ilana/for-others/repeat-lesions/index.txt"; # 10(b300)A-P; 10(
 #totframes: DO: calculate from sum of all dim4.
 $totframes=214;
 
+# if using the NeuroRx pipeline for segmentation
+$nrx=1;
 
 my @args_table = (#["-clobber","boolean",undef,\$clobber,"clobber all output files (currently not implemented, sorry)"],#HERE not implemented
 		  ["-diff","string",6,\@diff_inputs,"diffusion input gzipped nii files in order b=low AP b=mid AP b=high AP b=low PA b=mid PA b=high PA"],
     ["-bvecs","string",6,\@bvecs_input,"bvec files in order b=low AP b=mid AP b=high AP b=low PA b=mid PA b=high PA"], 
-["-anat","string",2,\@anatfiles,"anatomical (UNI MP2RAGE) nii file and minc file."],
+["-anat","string",2,\@anatfiles,"anatomical (T1w pre-contrast) nii file and minc file."],
     ["-MTsat","string",3,\@MTsat,"MTsat input files in order MTW PDW T1W.  **minc** files."],
     ["-B1","string",2,\@B1files,"ep_seg_se_b1 60 and 120 for AFI B1 calculation. minc files. needed for all MT"],
    #-acqparams","string",1,\$acq,"acq params for topup"],
@@ -105,7 +108,7 @@ foreach $b (@bvecs_input){
 }
 print BVEC "@x\n@y\n@z\n";
 $anat=$anatfiles[0];
-$MPRAGE_im_mnc=$anatfiles[1];
+$T1w_im_mnc=$anatfiles[1];
 
 
 
@@ -237,7 +240,7 @@ if ($done==0)
 print "\n----Register anatomical to diffusion series---\n";
 
 $xfm="diff2str.mat";
-$xfm_in=".mat";
+$xfm_in="str2diff.mat";
 $b0_eddy="b0_eddy-corr.nii.gz";
 $b0_eddy_unz="b0_eddy-corr.nii";
 $b0_eddy_corr_mnc="b0_eddy_corr_mnc.mnc";
@@ -367,68 +370,70 @@ print "minc_modify_header -dinsert xspace:start=$xstart -dinsert yspace:start=$y
 print "----make the tissue masks:---------\n\n";
 
 $done=0;
+if ($nrx ==0){ # not doing NeuroRx segmentation
+    if (-d "segmentation")
+  {
+      $done=1;
+      print "standard_pipeline.pl 1 1 $T1w_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
+  }
 
-if (-d "segmentation")
-{
-    $done=1;
-    print "standard_pipeline.pl 1 1 $MPRAGE_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
+
+  if ($done==0)
+  {
+    print "--Doing segmentation--\n";
+    print "standard_pipeline.pl 1 1 $T1w_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
+    `standard_pipeline.pl 1 1 $T1w_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/`;
+  }
 }
 
-
-if ($done==0)
-{
-  print "--Doing segmentation--\n";
-  print "standard_pipeline.pl 1 1 $MPRAGE_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/\n";
-  `standard_pipeline.pl 1 1 $MPRAGE_im_mnc --prefix segmentation/ --model_dir /ipl/quarantine/models/icbm152_model_09c/ --beastlib /ipl/quarantine/models/beast/`;
-}
 #get xfm from t1 to diffusion:
 
 #DO: do I ned to n3 the anat first for this to work?  does flirt?
-print "minctracc -clob -identity -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber\n";
-`minctracc -clob -identity -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber`;
-print "minctracc -clob -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
-`minctracc -clob -mi $b0_eddy_corr_mnc $MPRAGE_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
+print "minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber\n";
+`minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber`;
+print "minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
+`minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
 
-`xfminvert dti-to-t1b.xfm str2diff.xfm`;
+`xfminvert dti-to-t1b.xfm str2diff.xfm -clob`;
 
-`rm -f dti-to-t1b.xfm dti-to-t1.xfm`;
+`rm -f dti-to-t1.xfm`;
 
 
 #DO write a converter for the fsl .mat xfm instead of redoing it.
 
 #WM for calculations: use WM.mnc
 #WM for vis:WM_blur_bin.mnc
+if ($nrx ==0){ # not doing NeuroRx segmentation
+  print "xfminvert segmentation/1/1/tal/tal_xfm_1_1_t1w.xfm taltot1w.xfm\n";
+  `xfminvert segmentation/1/1/tal/tal_xfm_1_1_t1w.xfm taltot1w.xfm`;
+  print "xfmconcat taltot1w.xfm str2diff.xfm taltodiff.xfm\n";
+  `xfmconcat taltot1w.xfm str2diff.xfm taltodiff.xfm`;
+  print "mincmath -eq -const 3 segmentation/1/1/tal_cls/tal_clean_1_1.mnc WM_tal.mnc\n";
+  `mincmath -eq -const 3 segmentation/1/1/tal_cls/tal_clean_1_1.mnc WM_tal.mnc`;
+  print "mincresample -nearest -transformation taltodiff.xfm -tfm_input_sampling -like $anat_to_diff_mnc WM_tal.mnc WM.mnc\n";
+  `mincresample -nearest -transformation taltodiff.xfm -tfm_input_sampling -like $anat_to_diff_mnc WM_tal.mnc WM.mnc`;
+  print "mincblur -fwhm 2 WM.mnc WM\n";
+  `mincblur -fwhm 2 WM.mnc WM`;
+  print "mincmath -gt -const 0.5 WM_blur.mnc WM_blur_bin.mnc\n";
+  `mincmath -gt -const 0.5 WM_blur.mnc WM_blur_bin.mnc`;
 
-print "xfminvert segmentation/1/1/tal/tal_xfm_1_1_t1w.xfm taltot1w.xfm\n";
-`xfminvert segmentation/1/1/tal/tal_xfm_1_1_t1w.xfm taltot1w.xfm`;
-print "xfmconcat taltot1w.xfm str2diff.xfm taltodiff.xfm\n";
-`xfmconcat taltot1w.xfm str2diff.xfm taltodiff.xfm`;
-print "mincmath -eq -const 3 segmentation/1/1/tal_cls/tal_clean_1_1.mnc WM_tal.mnc\n";
-`mincmath -eq -const 3 segmentation/1/1/tal_cls/tal_clean_1_1.mnc WM_tal.mnc`;
-print "mincresample -nearest -transformation taltodiff.xfm -tfm_input_sampling -like $anat_to_diff_mnc WM_tal.mnc WM.mnc\n";
-`mincresample -nearest -transformation taltodiff.xfm -tfm_input_sampling -like $anat_to_diff_mnc WM_tal.mnc WM.mnc`;
-print "mincblur -fwhm 2 WM.mnc WM\n";
-`mincblur -fwhm 2 WM.mnc WM`;
-print "mincmath -gt -const 0.5 WM_blur.mnc WM_blur_bin.mnc\n";
-`mincmath -gt -const 0.5 WM_blur.mnc WM_blur_bin.mnc`;
+  #More stringent masks using Mat's/Sivlain's script
+  print "\n----New more stringent tissue masks--\n";
+  print "mincresample -nearest -tfm_input_sampling -transformation taltodiff.xfm -step 1 1 3 segmentation/1/1/tal_cls/tal_clean_1_1.mnc cls_diffspace_highres.mnc\n";
+  `mincresample -nearest -tfm_input_sampling -transformation taltodiff.xfm -step 1 1 3 segmentation/1/1/tal_cls/tal_clean_1_1.mnc cls_diffspace_highres.mnc`;
+  #percentageTissue = maskMajorityVoting(inputMincVolume, inputMincClassified, numberOfClasses, outputBaseName)
+  print "run_matlab(maskMajorityVoting('$anat_to_diff_mnc', 'cls_diffspace_highres.mnc', 3, 'final')) \n";
+  run_matlab("maskMajorityVoting('$anat_to_diff_mnc', 'cls_diffspace_highres.mnc', 3, 'final');") unless -e "final_wm_perc.mnc";
+  print "minccalc -expression  A[0] > 99.1? 1 : 0 final_wm_perc.mnc wm_100pc_mask.mnc\n";
+  `minccalc -expression  "A[0] > 99.1? 1 : 0" final_wm_perc.mnc wm_100pc_mask.mnc`;
 
-#More stringent masks using Mat's/Sivlain's script
-print "\n----New more stringent tissue masks--\n";
-print "mincresample -nearest -tfm_input_sampling -transformation taltodiff.xfm -step 1 1 1 segmentation/1/1/tal_cls/tal_clean_1_1.mnc cls_diffspace_highres.mnc\n";
-`mincresample -nearest -tfm_input_sampling -transformation taltodiff.xfm -step 1 1 1 segmentation/1/1/tal_cls/tal_clean_1_1.mnc cls_diffspace_highres.mnc`;
-#percentageTissue = maskMajorityVoting(inputMincVolume, inputMincClassified, numberOfClasses, outputBaseName)
-print "run_matlab(maskMajorityVoting('$anat_to_diff_mnc', 'cls_diffspace_highres.mnc', 3, 'final')) \n";
-run_matlab("maskMajorityVoting('$anat_to_diff_mnc', 'cls_diffspace_highres.mnc', 3, 'final');") unless -e "final_wm_perc.mnc";
-print "minccalc -expression  A[0] > 99.1? 1 : 0 final_wm_perc.mnc wm_100pc_mask.mnc\n";
-`minccalc -expression  "A[0] > 99.1? 1 : 0" final_wm_perc.mnc wm_100pc_mask.mnc`;
-
-#parenchyma, you won't want for g-ratio
-`mincmath -gt -const 1  segmentation/1/1/tal_cls/tal_clean_1_1.mnc parenchyma_tal.mnc`;
-`mincresample -transformation taltot1w.xfm -tfm_input_sampling -like anat-to-diff_mnc.mnc parenchyma_tal.mnc parenchyma.mnc`;
-`mincmath -gt -const 0.95 parenchyma.mnc parenchyma_bin.mnc`;
-print "minccalc -expression  (A[0]> 99.1 || A[1]> 99.1) == 1 ? 1 : 0 final_wm_perc.mnc final_gm_perc.mnc parenchyma_100pc_mask.mnc\n";
-`minccalc -expression  "(A[0]> 99.1 || A[1]> 99.1) == 1 ? 1 : 0" final_wm_perc.mnc final_gm_perc.mnc parenchyma_100pc_mask.mnc`;
-
+  #parenchyma, you won't want for g-ratio
+  `mincmath -gt -const 1  segmentation/1/1/tal_cls/tal_clean_1_1.mnc parenchyma_tal.mnc`;
+  `mincresample -transformation taltot1w.xfm -tfm_input_sampling -like anat-to-diff_mnc.mnc parenchyma_tal.mnc parenchyma.mnc`;
+  `mincmath -gt -const 0.95 parenchyma.mnc parenchyma_bin.mnc`;
+  print "minccalc -expression  (A[0]> 99.1 || A[1]> 99.1) == 1 ? 1 : 0 final_wm_perc.mnc final_gm_perc.mnc parenchyma_100pc_mask.mnc\n";
+  `minccalc -expression  "(A[0]> 99.1 || A[1]> 99.1) == 1 ? 1 : 0" final_wm_perc.mnc final_gm_perc.mnc parenchyma_100pc_mask.mnc`;
+}
 #} #segmentation
 
 
@@ -516,7 +521,7 @@ if ($doing_MTsat==1) {
 
 
   #register MT images to anat (registered with diffusion) and resample to diffspace sampling:
-  #HERE possibly register to the original MPRAGE instead of the downsampled MPRAGE
+  #HERE possibly register to the original T1w instead of the downsampled T1w
   print "minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0\n";
   `minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0`;
   print "minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0\n";
@@ -591,8 +596,8 @@ if ($doing_MTsat==1) {
   print "minc_modify_header -sinsert :history=g-ratio_pipeline.pl @ARGV $g_name\n";
   `minc_modify_header -sinsert :history="g-ratio_pipeline.pl @ARGV" $g_name`;
 
-
-  print "mincmath -mult WM.mnc brainmask_MTsat.mnc WM_MTsatmasked.mnc\n";
+if ($nrx==0){
+    print "mincmath -mult WM.mnc brainmask_MTsat.mnc WM_MTsatmasked.mnc\n";
   `mincmath -mult WM.mnc brainmask_MTsat.mnc WM_MTsatmasked.mnc` unless -e "WM_MTsatmasked.mnc";
   print "mincmath -mult parenchyma_bin.mnc brainmask_MTsat.mnc parenchyma_MTsatmasked.mnc\n";
   `mincmath -mult parenchyma_bin.mnc brainmask_MTsat.mnc parenchyma_MTsatmasked.mnc` unless -e "parenchyma_MTsatmasked.mnc";
@@ -601,6 +606,8 @@ if ($doing_MTsat==1) {
   `mincmath -mult wm_100pc_mask.mnc brainmask_MTsat.mnc WM-100pc_MTsatmasked.mnc`;
   print "mincmath -mult parenchyma_100pc_mask.mnc brainmask_MTsat.mnc parenchyma-100pc_MTsatmasked.mnc\n";
   `mincmath -mult parenchyma_100pc_mask.mnc brainmask_MTsat.mnc parenchyma-100pc_MTsatmasked.mnc`;
+}
+
 
 }#doing_MTsat
 
@@ -698,18 +705,6 @@ return $file_no_ext;
 
 # NOTES
 
-# a) if using qMT:
-
-# grab new qMTLab occasionally from github (DO: set up automatic)
-
-# requires these files, which I have in g-ratio_pipeline dir:
-
-# BICProtocol.mat: note offsets in Hz, angles are degrees if making new protocol.
-
-# BICFitOpt.mat: does this:
-# chooses SledPikeRP (now is default)
-# set F maximum to 0.5
-# I don't set R1r=1.0 (now is default; more common in SledPikeRP) - I have R1r=R1f.
 
 
 # b) outputs currently go in working directory; should clean this up with more output directories.
