@@ -77,7 +77,7 @@ GetOptions(\@args_table, \@ARGV, \@args) || exit 1;
 die $Usage unless $#ARGV >=0;
 
 #my $subdir=$args[0]; #the input dir
-chomp($unique=`date +%m%w%H%M`); 
+chomp($unique=`date +%y%m%d-%H:%M`); 
 print "--> Date is $unique\n";
 print "**** $program @ARGV ****\n";
 
@@ -390,12 +390,12 @@ if ($nrx ==0){ # not doing NeuroRx segmentation
 #get xfm from t1 to diffusion:
 
 #DO: do I ned to n3 the anat first for this to work?  does flirt?
-print "minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber\n";
-`minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber`;
-print "minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
-`minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
+print "minctracc -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 \n";
+`minctracc  -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1`;
+print "minctracc  -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
+`minctracc -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
 
-`xfminvert dti-to-t1b.xfm str2diff.xfm -clob`;
+`xfminvert dti-to-t1b.xfm str2diff.xfm`;
 
 `rm -f dti-to-t1.xfm`;
 
@@ -548,8 +548,8 @@ if ($doing_MTsat==1) {
   print "mincresample -use_input_sampling -transformation $xfm_T1W_to_b0 $T1W_crop $T1W_reg_anat\n";
   `mincresample -use_input_sampling -transformation $xfm_T1W_to_b0 $T1W_crop $T1W_reg_anat`;
   # B1map has to sampled the same way as well
-  print "mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc\n";
-  `mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc`;
+  print "mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc unless -e b1/b1-hig-res.mnc\n";
+  `mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc ` unless -e "b1/b1-hig-res.mnc";
 
   #compute MTsat images
 
