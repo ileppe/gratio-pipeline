@@ -6,11 +6,11 @@ exit
 endif
 
 
-minccalc -float -expression "A[0]*(1-A[1])*(1-$5*A[2])" $1 $2 $3 $4_avf_unmasked.mnc -nocheck_dimensions
+minccalc -float -expression "clamp(A[0]*(1-A[1])*(1-$5*A[2]),0,1)" $1 $2 $3 $4_avf_unmasked.mnc -nocheck_dimensions
 
-minccalc -float -expression "$5*A[0]" $3 $4_mvf_unmasked.mnc -nocheck_dimensions
+minccalc -float -expression "clamp($5*A[0],0,1)" $3 $4_mvf_unmasked.mnc -nocheck_dimensions
 
-minccalc -float -expression "sqrt(1/(1+A[0]/A[1]))" $4_mvf_unmasked.mnc $4_avf_unmasked.mnc $4_g_unmasked.mnc -nocheck_dimensions
+minccalc -float -expression "clamp(sqrt(1/(1+A[0]/A[1])),0,1)" $4_mvf_unmasked.mnc $4_avf_unmasked.mnc $4_g_unmasked.mnc -nocheck_dimensions
 
 if ($#argv == 6) then
     mincmath -float -mult $4_avf_unmasked.mnc $6 $4_avf.mnc -nocheck_dimensions

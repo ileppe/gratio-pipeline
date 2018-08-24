@@ -77,12 +77,12 @@ $Aapp=$output_base."_Aapp.mnc";
 $sapp=$output_base."_MTsat_uncorr.mnc";
 
 
-`minccalc -float -expr "100*((A[0]*$a_MTw_r/A[1]-1)*A[2]*$TR_MTw - $a_MTw_r*$a_MTw_r/2)" $Aapp $MTw $r1app $sapp `;
+`minccalc -float -expr "clamp(100*((A[0]*$a_MTw_r/A[1]-1)*A[2]*$TR_MTw - $a_MTw_r*$a_MTw_r/2),0,50)" $Aapp $MTw $r1app $sapp `;
 
 
 $MTsatcorr=$output_base."_MTsat.mnc";
 
 #B1 correction:
 
-`minccalc -float  -expr "A[0]*(1-0.4)/(1-0.4*A[1])" $sapp $B1map $MTsatcorr`;
+`minccalc -float  -expr "clamp(A[0]*(1-0.4)/(1-0.4*A[1]),0,50)" $sapp $B1map $MTsatcorr`;
 
