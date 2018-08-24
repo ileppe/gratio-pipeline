@@ -174,9 +174,10 @@ $hifi_b0="my_hifi_b0.nii.gz";
 $topup_results="topup_results";
 
   ## For some stupid reason topup does not like an odd # of slices!!!
-$A2P_P2A_b0_even="A2P_P2A_b0_even";
+$A2P_P2A_b0_even="A2P_P2A_b0_even.nii.gz";
 print "\n--Make number of slices even or else topup complains--\n\n";
-`fslroi $A2P_P2A_b0 $A2P_P2A_b0_even 0 128 0 128 0 $Nslices`;
+print "fslroi $A2P_P2A_b0 $A2P_P2A_b0_even 0 128 0 128 0 $Nslices unless -e $A2P_P2A_b0_even\n";
+`fslroi $A2P_P2A_b0 $A2P_P2A_b0_even 0 128 0 128 0 $Nslices` unless -e $A2P_P2A_b0_even;
 
 print "topup --imain=$A2P_P2A_b0_even --datain=$acq --config=b02b0.cnf --out=$topup_results --iout=$hifi_b0\n";
 `topup --imain=$A2P_P2A_b0_even --datain=$acq --config=b02b0.cnf --out=$topup_results --iout=$hifi_b0` unless -e $hifi_b0;
@@ -240,8 +241,8 @@ if ($done==0)
 
 print "\n----Register anatomical to diffusion series---\n";
 
-$xfm="diff2str.mat";
-$xfm_in="str2diff.mat";
+#$xfm="diff2str.mat";
+#$xfm_in="str2diff.mat";
 $b0_eddy="b0_eddy-corr.nii.gz";
 $b0_eddy_unz="b0_eddy-corr.nii";
 $b0_eddy_corr_mnc="b0_eddy_corr_mnc.mnc";
@@ -250,23 +251,41 @@ $b0_eddy_corr_mnc="b0_eddy_corr_mnc.mnc";
 print "fslroi $eddy_corrected_data $b0_eddy 0 1 unless (-e $b0_eddy || -e $b0_eddy_unz)\n";
 `fslroi $eddy_corrected_data $b0_eddy 0 1 ` unless (-e $b0_eddy || -e $b0_eddy_unz);
 
-print "flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo unless -e $xfm\n";
-`flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo` unless -e $xfm;
+## Aug 24th: Do the registration in mnc, it's better than flirt (and less blurring during resampling)
+#make b0 in minc:
+`gunzip $b0_eddy` unless -e $b0_eddy_unz;
+`nii2mnc $b0_eddy_unz $b0_eddy_corr_mnc` unless -e $b0_eddy_corr_mnc;
 
-print "convert_xfm -omat $xfm_in -inverse $xfm\n";
-`convert_xfm -omat $xfm_in -inverse $xfm`;
+#print "flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo unless -e $xfm\n";
+#`flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo` unless -e $xfm;
 
+#print "convert_xfm -omat $xfm_in -inverse $xfm\n";
+#`convert_xfm -omat $xfm_in -inverse $xfm`;
 
-$anat_to_diff="anat-to-diff.nii.gz";
-$anat_to_diff_unz="anat-to-diff.nii";
+#get xfm from t1 to diffusion:
+
+#DO: do I ned to n3 the anat first for this to work?  does flirt?
+print "minctracc -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 \n";
+`minctracc  -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1`;
+print "minctracc  -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
+`minctracc -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
+
+`xfminvert dti-to-t1b.xfm str2diff.xfm`;
+
+`rm -f dti-to-t1.xfm`;
+
+#$anat_to_diff="anat-to-diff.nii.gz";
+#$anat_to_diff_unz="anat-to-diff.nii";
 
 qMT2:
 
 $anat_to_diff_mnc="anat-to-diff_mnc.mnc";
 
 #goto qMT3;
-print "flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff\n";
-`flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff` unless -e $anat_to_diff;
+#print "flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff\n";
+#`flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff` unless -e $anat_to_diff;
+print "mincresample $T1w_im_mnc -like $b0_eddy_corr_mnc -transformation str2diff.xfm $anat_to_diff_mnc\n";
+`mincresample $T1w_im_mnc -like $b0_eddy_corr_mnc -transformation str2diff.xfm $anat_to_diff_mnc`;
 
 
 ## Run NODDI on eddy-corrected data
@@ -333,8 +352,8 @@ print "---make minc files from brain mask and NODDI outputs:\n\n";
 #the brain mask and the NODDI stuff all have the wrong starts and steps; we write this from anat-to-diff:
 #convert anat in diff space to minc:
 
-`gunzip $anat_to_diff` unless -e $anat_to_diff_unz;
-`nii2mnc $anat_to_diff_unz $anat_to_diff_mnc` unless -e $anat_to_diff_mnc;
+#`gunzip $anat_to_diff` unless -e $anat_to_diff_unz;
+#`nii2mnc $anat_to_diff_unz $anat_to_diff_mnc` unless -e $anat_to_diff_mnc;
 
 
 $xstart=`mincinfo -attvalue xspace:start $anat_to_diff_mnc`;
@@ -361,13 +380,6 @@ print "minc_modify_header -dinsert xspace:start=$xstart -dinsert yspace:start=$y
 
 
 
-#make b0 in minc:
-
-
-`gunzip $b0_eddy` unless -e $b0_eddy_unz;
-`nii2mnc $b0_eddy_unz $b0_eddy_corr_mnc` unless -e $b0_eddy_corr_mnc;
-
-
 print "----make the tissue masks:---------\n\n";
 
 $done=0;
@@ -387,20 +399,7 @@ if ($nrx ==0){ # not doing NeuroRx segmentation
   }
 }
 
-#get xfm from t1 to diffusion:
 
-#DO: do I ned to n3 the anat first for this to work?  does flirt?
-print "minctracc -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 \n";
-`minctracc  -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1`;
-print "minctracc  -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
-`minctracc -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
-
-`xfminvert dti-to-t1b.xfm str2diff.xfm`;
-
-`rm -f dti-to-t1.xfm`;
-
-
-#DO write a converter for the fsl .mat xfm instead of redoing it.
 
 #WM for calculations: use WM.mnc
 #WM for vis:WM_blur_bin.mnc
