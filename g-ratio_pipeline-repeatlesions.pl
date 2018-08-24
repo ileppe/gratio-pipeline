@@ -77,7 +77,8 @@ GetOptions(\@args_table, \@ARGV, \@args) || exit 1;
 die $Usage unless $#ARGV >=0;
 
 #my $subdir=$args[0]; #the input dir
-
+chomp($unique=`date +%m%w%H%M`); 
+print "--> Date is $unique\n";
 print "**** $program @ARGV ****\n";
 
 #if just processing qMT data:
@@ -138,7 +139,7 @@ if ($Nslices % 2 == 1)
 }
 
 
-$A2P_P2A_b0="A2P_P2A_b0";
+$A2P_P2A_b0="A2P_P2A_b0.nii.gz";
 $diff_b0_10AP="b0-10AP.nii.gz";
 $diff_b0_30AP="b0-30AP.nii.gz";
 $diff_b0_64AP="b0-64AP.nii.gz";
@@ -488,10 +489,13 @@ if ($doing_MTsat==1) {
   $xfm_T1W_to_b0="T1W_to_b0.xfm";
 
 
-  $MTW_like_b0="MTW_like_b0.mnc";
-  $PDW_like_b0="PDW_like_b0.mnc";
-  $T1W_like_b0="T1W_like_b0.mnc";
+  #$MTW_like_b0="MTW_like_b0.mnc";
+  #$PDW_like_b0="PDW_like_b0.mnc";
+  #$T1W_like_b0="T1W_like_b0.mnc";
 
+  $MTW_reg_anat="MTW_reg-to-anat.mnc";
+  $PDW_reg_anat="PDW_reg-to-anat.mnc";
+  $T1W_reg_anat="T1W_reg-to-anat.mnc";
 
   #!!!!note that the final protocol should have sufficient coverage to not need to do this, although we can do it anyway, just should be left with a full brain
   #cut off the bad slices from slab profile: hardcoded here to take off 5 slices:
@@ -520,34 +524,48 @@ if ($doing_MTsat==1) {
   `mincreshape -start 5,0,0 -count $new_zsize,$ysize,$xsize $T1W $T1W_crop` unless -e "$T1W_crop";
 
 
+ print "\n---  Compute MTsat  ---\n";
   #register MT images to anat (registered with diffusion) and resample to diffspace sampling:
   #HERE possibly register to the original T1w instead of the downsampled T1w
-  print "minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0\n";
-  `minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0`;
-  print "minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0\n";
-  `minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0`;
-  print "minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0\n";
-  `minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0`;
-  print "mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0\n";
-  `mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0`;
-  print "mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0\n";
-  `mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0`;
-  print "mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0\n";
-  `mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0`;
+  print "minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0 unless -e $xfm_MTW_to_b0\n";
+  `minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0` unless -e $xfm_MTW_to_b0;
+  print "minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0 unless -e $xfm_PDW_to_b0\n";
+  `minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0` unless -e $xfm_PDW_to_b0;
+  print "minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0 unless -e $xfm_T1W_to_b0\n";
+  `minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0` unless -e $xfm_T1W_to_b0;
+  #print "mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0\n";
+  #`mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0`;
+  #print "mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0\n";
+  #`mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0`;
+  #print "mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0\n";
+  #`mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0`;
 
+  #Keep the MT images in high-res and only downsample the result
+  print "mincresample -use_input_sampling -transformation $xfm_MTW_to_b0 $MTW_crop $MTW_reg_anat\n";
+  `mincresample -use_input_sampling -transformation $xfm_MTW_to_b0 $MTW_crop $MTW_reg_anat`;
+  print "mincresample -use_input_sampling -transformation $xfm_PDW_to_b0 $PDW_crop $PDW_reg_anat\n";
+  `mincresample -use_input_sampling -transformation $xfm_PDW_to_b0 $PDW_crop $PDW_reg_anat`;
+  print "mincresample -use_input_sampling -transformation $xfm_T1W_to_b0 $T1W_crop $T1W_reg_anat\n";
+  `mincresample -use_input_sampling -transformation $xfm_T1W_to_b0 $T1W_crop $T1W_reg_anat`;
+  # B1map has to sampled the same way as well
+  print "mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc\n";
+  `mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc`;
 
   #compute MTsat images
 
-  $MTsat_im_base="MTsat_images";
+  $MTsat_im_base="MTsat_images-hr";
   $MTsat_im="MTsat_images_MTsat.mnc";
   $MTsat_im_masked="MTsat_images_MTsat_masked.mnc";
 
 
-
   #change b1 map name if nec. note currently not optional (input a mask of all one if you don't have one). b1/b1.mnc is spline smoothed b1
+ 
+  print "\nMTsat-T1_JC.pl $MTW_reg_anat $PDW_reg_anat $T1W_reg_anat b1/b1-hig-res.mnc $MTsat_im_base\n\n";
+  `MTsat-T1_JC.pl $MTW_reg_anat $PDW_reg_anat $T1W_reg_anat b1/b1-hig-res.mnc $MTsat_im_base`;
 
-  print "\nMTsat-T1_JC.pl $MTW_like_b0 $PDW_like_b0 $T1W_like_b0 b1/b1.mnc $MTsat_im_base\n\n";
-  `MTsat-T1_JC.pl $MTW_like_b0 $PDW_like_b0 $T1W_like_b0 b1/b1.mnc $MTsat_im_base`;
+  # now resample the hig res MTsat iamges to lower res to match diffusion
+  print "mincresample -tfm_input_sampling MTsat_images-hr_MTsat.mnc -like $anat_to_diff_mnc $MTsat_im\n";
+  `mincresample -tfm_input_sampling MTsat_images-hr_MTsat.mnc -like $anat_to_diff_mnc $MTsat_im`; 
 
   #DO: possibly clamp to positive values? prob not nec with mask (below); and can make mask mask those out if nec
 
@@ -593,8 +611,8 @@ if ($doing_MTsat==1) {
 
   print "NODDI_g $noddi_ficvf_mnc $noddi_fiso_mnc $MTsat_im $outbase $scale_MTsat $brainmask_MTsat\n\n";
   `NODDI_g $noddi_ficvf_mnc $noddi_fiso_mnc $MTsat_im $outbase $scale_MTsat $brainmask_MTsat`;
-  print "minc_modify_header -sinsert :history=g-ratio_pipeline.pl @ARGV $g_name\n";
-  `minc_modify_header -sinsert :history="g-ratio_pipeline.pl @ARGV" $g_name`;
+  print "minc_modify_header -sinsert :history=$program @ARGV $g_name\n";
+  `minc_modify_header -sinsert :history="$program @ARGV" $g_name`;
 
 if ($nrx==0){
     print "mincmath -mult WM.mnc brainmask_MTsat.mnc WM_MTsatmasked.mnc\n";
