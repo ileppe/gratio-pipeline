@@ -18,8 +18,10 @@
 ##				- WM in stx space
 ##  - X-x_00d/m00/TissueClassification/*/*segmentation_ISPC-stx152lsq6.mnc.gz
 ##				- classification in stx space
-##  - X-x_00d/m00/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz
-##				- MP2Rage in stx space
+##  - ##X-x_00d/m00/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz #WRONG
+##				- MP2Rage T1map in stx space
+##  - X-x_00d/m00/RegisterOtherModalities/*/*_t1gMPR-t1map-to-stx152lsq6.xfm
+##				- transofrmation of MP2Rage T1map in stx space
 ## - dti-to-t1b.xfm
 ##				- created by g-ratio_pipeline
 ##				- transformation from diffusion to t1p (pre-Gd) space
@@ -57,19 +59,23 @@ if ($pwd=~/7_([a-z])_([a-z])_(\d{3})_(m\d{2})/){$sub1=$1;$sub2=$2;$num=$3;$visit
 print "\n---On loki---\n";
 $dir=$sub1."-".$sub2."_".$num."/".$visit;
 $tar=$sub1."-".$sub2."_".$num."_".$visit.".tar";
-print "tar -cvf /tmp/$tar $dir/*_ct2f.mnc* $dir/*_gvf.mnc.gz $dir/TissueClassification/*/*ANAT-na-cerebrum-wm_ISPC-stx152lsq6.mask.mnc.gz $dir/TissueClassification/*/*segmentation_ISPC-stx152lsq6.mnc.gz $dir/RegisterToStandardSpace/*/*_t1p-to-stx152lsq6.xfm $dir/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz\n";
+#print "tar -cvf /tmp/$tar $dir/*_ct2f.mnc* $dir/*_gvf.mnc.gz $dir/TissueClassification/*/*ANAT-na-cerebrum-wm_ISPC-stx152lsq6.mask.mnc.gz $dir/TissueClassification/*/*segmentation_ISPC-stx152lsq6.mnc.gz $dir/RegisterToStandardSpace/*/*_t1p-to-stx152lsq6.xfm $dir/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz\n";
+print "tar -cvf /tmp/$tar $dir/*_ct2f.mnc* $dir/*_gvf.mnc.gz $dir/TissueClassification/*/*ANAT-na-cerebrum-wm_ISPC-stx152lsq6.mask.mnc.gz $dir/TissueClassification/*/*segmentation_ISPC-stx152lsq6.mnc.gz $dir/RegisterToStandardSpace/*/*_t1p-to-stx152lsq6.xfm $dir/RegisterOtherModalities/*/*_t1gMPR-t1map-to-stx152lsq6.xfm\n";
 print "scp ileppert\@loki.bic.mni.mcgill.ca:/tmp/$tar .\n";
 unless (-e $tar){
 	die "---> first download the data from loki\n";
 }
 
 `tar xvf $tar`;
+$thresh = 1600; #t1 threshold to separate black holes and t2 lesions
 $t2les = `\\ls $dir/*_ct2f.mnc*`; chomp($t2les);
 $gd = `\\ls $dir/*_gvf.mnc.gz`; chomp($gd);
 $wm = `\\ls $dir/TissueClassification/*/*ANAT-na-cerebrum-wm_ISPC-stx152lsq6.mask.mnc.gz`; chomp($wm);
 $seg = `\\ls $dir/TissueClassification/*/*segmentation_ISPC-stx152lsq6.mnc.gz`; chomp($seg);
 $t1p2stx = `\\ls $dir/RegisterToStandardSpace/*/*_t1p-to-stx152lsq6.xfm`;chomp($t1p2stx);
-$t1map = `\\ls $dir/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz`; chomp($t1map);
+# The T1map has been N4 corrected, which totally disrupts the values, redo the resampling
+#$t1map = `\\ls $dir/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz`; chomp($t1map);
+$t1map2stx = `\\ls $dir/RegisterOtherModalities/*/*_t1gMPR-t1map-to-stx152lsq6.xfm`;chomp($t1map2stx);
 
 
 @t1ps=`more mnclist | grep mni_gre_3D_T1w-PreGd`;
@@ -77,7 +83,9 @@ $t1map = `\\ls $dir/ResampleToStx/*/*t1gMPR-t1map_ISPC-stx152lsq6.mnc.gz`; chomp
 $t1p = $file[0];#2nd should be the normalized one used by NeuroRx for registation
 $diff = `ls b0_eddy_corr_mnc.mnc`; chomp($diff);
 $diff2t1p  = `\\ls dti-to-t1b.xfm`; chomp($diff2t1p);
-
+@t1map_nats = `more mnclist | grep MP2RAGE_1mm_T1_Images`;
+@file = split(/\s+/,$t1map_nats[0]);
+$t1map_nat = $file[0];
 
 #my @args_table = (["-t1p","string",1,\$t1p,"T1w pre-contrast."],
 	#["-diff","string",1,\$diff,"b0 to which everything should be registered to"],
@@ -104,6 +112,8 @@ print "xfmconcat $diff2t1p $t1p2stx $b02stx\n";
 
 print "-------Depending how they were created, have to resample masks to full stx--------\n";
 
+
+
 if (-e $t2les){
 ($namebase,$dir,$ext)=fileparse($t2les,'\..*');
 $t2les_stx=$namebase."-stx152lsq6.mnc";
@@ -119,11 +129,18 @@ print "mincresample $gd -near -like $wm $gdles\n";
 `mincresample $gd -near -like $wm $gdles`;
 }else{die "----Can't find Gdles mask\n";}
 
+if (-e $t1map2stx && -e $t1map_nat){
+	print "--------Create T1map in stx space----------\n";
+	$t1map = "t1map-stx152lsq6.mnc";
+	print "mincresample $t1map_nat -like $wm -transform $t1map2stx $t1map\n";
+	`mincresample $t1map_nat -like $wm -transform $t1map2stx $t1map` unless -e $t1map;
+}else{die "----Can't find T1map transformation or native T1map\n";}
+
 if (-e $t2les){
 print "--------Create a black-hole type mask, with a threshold on T1 (looks dark on lepto)----------\n";
-$blakh = "black-holes-thres1000-stx152lsq6.mnc";
-	print "minccalc -expr A[0]>1000 && A[1]  $t1map $t2les $blakh\n";
-	`minccalc -expr "A[0]>1000 && A[1]" $t1map $t2les $blakh` unless -e $blakh;
+$blakh = "black-holes-thres$thresh-stx152lsq6.mnc";
+	print "minccalc -expr A[0]>$thresh && A[1]  $t1map $t2les $blakh\n";
+	`minccalc -expr "A[0]>$thresh && A[1]" $t1map $t2les $blakh` unless -e $blakh;
 
 }else{die "----Can't find T2les mask\n";}
 

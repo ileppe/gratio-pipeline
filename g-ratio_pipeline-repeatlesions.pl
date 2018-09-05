@@ -77,7 +77,8 @@ GetOptions(\@args_table, \@ARGV, \@args) || exit 1;
 die $Usage unless $#ARGV >=0;
 
 #my $subdir=$args[0]; #the input dir
-
+chomp($unique=`date +%y%m%d-%H:%M`); 
+print "--> Date is $unique\n";
 print "**** $program @ARGV ****\n";
 
 #if just processing qMT data:
@@ -138,7 +139,7 @@ if ($Nslices % 2 == 1)
 }
 
 
-$A2P_P2A_b0="A2P_P2A_b0";
+$A2P_P2A_b0="A2P_P2A_b0.nii.gz";
 $diff_b0_10AP="b0-10AP.nii.gz";
 $diff_b0_30AP="b0-30AP.nii.gz";
 $diff_b0_64AP="b0-64AP.nii.gz";
@@ -173,9 +174,10 @@ $hifi_b0="my_hifi_b0.nii.gz";
 $topup_results="topup_results";
 
   ## For some stupid reason topup does not like an odd # of slices!!!
-$A2P_P2A_b0_even="A2P_P2A_b0_even";
+$A2P_P2A_b0_even="A2P_P2A_b0_even.nii.gz";
 print "\n--Make number of slices even or else topup complains--\n\n";
-`fslroi $A2P_P2A_b0 $A2P_P2A_b0_even 0 128 0 128 0 $Nslices`;
+print "fslroi $A2P_P2A_b0 $A2P_P2A_b0_even 0 128 0 128 0 $Nslices unless -e $A2P_P2A_b0_even\n";
+`fslroi $A2P_P2A_b0 $A2P_P2A_b0_even 0 128 0 128 0 $Nslices` unless -e $A2P_P2A_b0_even;
 
 print "topup --imain=$A2P_P2A_b0_even --datain=$acq --config=b02b0.cnf --out=$topup_results --iout=$hifi_b0\n";
 `topup --imain=$A2P_P2A_b0_even --datain=$acq --config=b02b0.cnf --out=$topup_results --iout=$hifi_b0` unless -e $hifi_b0;
@@ -239,8 +241,8 @@ if ($done==0)
 
 print "\n----Register anatomical to diffusion series---\n";
 
-$xfm="diff2str.mat";
-$xfm_in="str2diff.mat";
+#$xfm="diff2str.mat";
+#$xfm_in="str2diff.mat";
 $b0_eddy="b0_eddy-corr.nii.gz";
 $b0_eddy_unz="b0_eddy-corr.nii";
 $b0_eddy_corr_mnc="b0_eddy_corr_mnc.mnc";
@@ -249,23 +251,41 @@ $b0_eddy_corr_mnc="b0_eddy_corr_mnc.mnc";
 print "fslroi $eddy_corrected_data $b0_eddy 0 1 unless (-e $b0_eddy || -e $b0_eddy_unz)\n";
 `fslroi $eddy_corrected_data $b0_eddy 0 1 ` unless (-e $b0_eddy || -e $b0_eddy_unz);
 
-print "flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo unless -e $xfm\n";
-`flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo` unless -e $xfm;
+## Aug 24th: Do the registration in mnc, it's better than flirt (and less blurring during resampling)
+#make b0 in minc:
+`gunzip $b0_eddy` unless -e $b0_eddy_unz;
+`nii2mnc $b0_eddy_unz $b0_eddy_corr_mnc` unless -e $b0_eddy_corr_mnc;
 
-print "convert_xfm -omat $xfm_in -inverse $xfm\n";
-`convert_xfm -omat $xfm_in -inverse $xfm`;
+#print "flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo unless -e $xfm\n";
+#`flirt -in $b0_eddy -ref $anat -omat $xfm -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 -cost mutualinfo` unless -e $xfm;
 
+#print "convert_xfm -omat $xfm_in -inverse $xfm\n";
+#`convert_xfm -omat $xfm_in -inverse $xfm`;
 
-$anat_to_diff="anat-to-diff.nii.gz";
-$anat_to_diff_unz="anat-to-diff.nii";
+#get xfm from t1 to diffusion:
+
+#DO: do I ned to n3 the anat first for this to work?  does flirt?
+print "minctracc -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 \n";
+`minctracc  -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1`;
+print "minctracc  -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
+`minctracc -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
+
+`xfminvert dti-to-t1b.xfm str2diff.xfm`;
+
+`rm -f dti-to-t1.xfm`;
+
+#$anat_to_diff="anat-to-diff.nii.gz";
+#$anat_to_diff_unz="anat-to-diff.nii";
 
 qMT2:
 
 $anat_to_diff_mnc="anat-to-diff_mnc.mnc";
 
 #goto qMT3;
-print "flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff\n";
-`flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff` unless -e $anat_to_diff;
+#print "flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff\n";
+#`flirt -in $anat -ref $b0_eddy -applyxfm -init $xfm_in -out  $anat_to_diff` unless -e $anat_to_diff;
+print "mincresample $T1w_im_mnc -like $b0_eddy_corr_mnc -transformation str2diff.xfm $anat_to_diff_mnc\n";
+`mincresample $T1w_im_mnc -like $b0_eddy_corr_mnc -transformation str2diff.xfm $anat_to_diff_mnc`;
 
 
 ## Run NODDI on eddy-corrected data
@@ -332,8 +352,8 @@ print "---make minc files from brain mask and NODDI outputs:\n\n";
 #the brain mask and the NODDI stuff all have the wrong starts and steps; we write this from anat-to-diff:
 #convert anat in diff space to minc:
 
-`gunzip $anat_to_diff` unless -e $anat_to_diff_unz;
-`nii2mnc $anat_to_diff_unz $anat_to_diff_mnc` unless -e $anat_to_diff_mnc;
+#`gunzip $anat_to_diff` unless -e $anat_to_diff_unz;
+#`nii2mnc $anat_to_diff_unz $anat_to_diff_mnc` unless -e $anat_to_diff_mnc;
 
 
 $xstart=`mincinfo -attvalue xspace:start $anat_to_diff_mnc`;
@@ -360,13 +380,6 @@ print "minc_modify_header -dinsert xspace:start=$xstart -dinsert yspace:start=$y
 
 
 
-#make b0 in minc:
-
-
-`gunzip $b0_eddy` unless -e $b0_eddy_unz;
-`nii2mnc $b0_eddy_unz $b0_eddy_corr_mnc` unless -e $b0_eddy_corr_mnc;
-
-
 print "----make the tissue masks:---------\n\n";
 
 $done=0;
@@ -386,20 +399,7 @@ if ($nrx ==0){ # not doing NeuroRx segmentation
   }
 }
 
-#get xfm from t1 to diffusion:
 
-#DO: do I ned to n3 the anat first for this to work?  does flirt?
-print "minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber\n";
-`minctracc -clob -identity -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 dti-to-t1.xfm -simplex 1 -clobber`;
-print "minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2\n";
-`minctracc -clob -mi $b0_eddy_corr_mnc $T1w_im_mnc -lsq6 -debug -threshold 30 5 -transformation dti-to-t1.xfm dti-to-t1b.xfm -simplex 1 -step 2 2 2`;
-
-`xfminvert dti-to-t1b.xfm str2diff.xfm -clob`;
-
-`rm -f dti-to-t1.xfm`;
-
-
-#DO write a converter for the fsl .mat xfm instead of redoing it.
 
 #WM for calculations: use WM.mnc
 #WM for vis:WM_blur_bin.mnc
@@ -488,10 +488,13 @@ if ($doing_MTsat==1) {
   $xfm_T1W_to_b0="T1W_to_b0.xfm";
 
 
-  $MTW_like_b0="MTW_like_b0.mnc";
-  $PDW_like_b0="PDW_like_b0.mnc";
-  $T1W_like_b0="T1W_like_b0.mnc";
+  #$MTW_like_b0="MTW_like_b0.mnc";
+  #$PDW_like_b0="PDW_like_b0.mnc";
+  #$T1W_like_b0="T1W_like_b0.mnc";
 
+  $MTW_reg_anat="MTW_reg-to-anat.mnc";
+  $PDW_reg_anat="PDW_reg-to-anat.mnc";
+  $T1W_reg_anat="T1W_reg-to-anat.mnc";
 
   #!!!!note that the final protocol should have sufficient coverage to not need to do this, although we can do it anyway, just should be left with a full brain
   #cut off the bad slices from slab profile: hardcoded here to take off 5 slices:
@@ -520,34 +523,48 @@ if ($doing_MTsat==1) {
   `mincreshape -start 5,0,0 -count $new_zsize,$ysize,$xsize $T1W $T1W_crop` unless -e "$T1W_crop";
 
 
+ print "\n---  Compute MTsat  ---\n";
   #register MT images to anat (registered with diffusion) and resample to diffspace sampling:
   #HERE possibly register to the original T1w instead of the downsampled T1w
-  print "minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0\n";
-  `minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0`;
-  print "minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0\n";
-  `minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0`;
-  print "minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0\n";
-  `minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0`;
-  print "mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0\n";
-  `mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0`;
-  print "mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0\n";
-  `mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0`;
-  print "mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0\n";
-  `mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0`;
+  print "minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0 unless -e $xfm_MTW_to_b0\n";
+  `minctracc -identity -mi $MTW_crop $anat_to_diff_mnc -lsq6  -simplex 1 $xfm_MTW_to_b0` unless -e $xfm_MTW_to_b0;
+  print "minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0 unless -e $xfm_PDW_to_b0\n";
+  `minctracc -identity -mi $PDW_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_PDW_to_b0` unless -e $xfm_PDW_to_b0;
+  print "minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0 unless -e $xfm_T1W_to_b0\n";
+  `minctracc -identity -mi $T1W_crop $anat_to_diff_mnc  -lsq6  -simplex 1 $xfm_T1W_to_b0` unless -e $xfm_T1W_to_b0;
+  #print "mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0\n";
+  #`mincresample -tfm_input_sampling -transformation $xfm_MTW_to_b0 -like $anat_to_diff_mnc $MTW_crop $MTW_like_b0`;
+  #print "mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0\n";
+  #`mincresample -tfm_input_sampling -transformation $xfm_PDW_to_b0 -like $anat_to_diff_mnc $PDW_crop $PDW_like_b0`;
+  #print "mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0\n";
+  #`mincresample -tfm_input_sampling -transformation $xfm_T1W_to_b0 -like $anat_to_diff_mnc $T1W_crop $T1W_like_b0`;
 
+  #Keep the MT images in high-res and only downsample the result
+  print "mincresample -use_input_sampling -transformation $xfm_MTW_to_b0 $MTW_crop $MTW_reg_anat\n";
+  `mincresample -use_input_sampling -transformation $xfm_MTW_to_b0 $MTW_crop $MTW_reg_anat`;
+  print "mincresample -use_input_sampling -transformation $xfm_PDW_to_b0 $PDW_crop $PDW_reg_anat\n";
+  `mincresample -use_input_sampling -transformation $xfm_PDW_to_b0 $PDW_crop $PDW_reg_anat`;
+  print "mincresample -use_input_sampling -transformation $xfm_T1W_to_b0 $T1W_crop $T1W_reg_anat\n";
+  `mincresample -use_input_sampling -transformation $xfm_T1W_to_b0 $T1W_crop $T1W_reg_anat`;
+  # B1map has to sampled the same way as well
+  print "mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc unless -e b1/b1-hig-res.mnc\n";
+  `mincresample b1/b1.mnc -like $T1W_reg_anat b1/b1-hig-res.mnc ` unless -e "b1/b1-hig-res.mnc";
 
   #compute MTsat images
 
-  $MTsat_im_base="MTsat_images";
+  $MTsat_im_base="MTsat_images-hr";
   $MTsat_im="MTsat_images_MTsat.mnc";
   $MTsat_im_masked="MTsat_images_MTsat_masked.mnc";
 
 
-
   #change b1 map name if nec. note currently not optional (input a mask of all one if you don't have one). b1/b1.mnc is spline smoothed b1
+ 
+  print "\nMTsat-T1_JC.pl $MTW_reg_anat $PDW_reg_anat $T1W_reg_anat b1/b1-hig-res.mnc $MTsat_im_base\n\n";
+  `MTsat-T1_JC.pl $MTW_reg_anat $PDW_reg_anat $T1W_reg_anat b1/b1-hig-res.mnc $MTsat_im_base`;
 
-  print "\nMTsat-T1_JC.pl $MTW_like_b0 $PDW_like_b0 $T1W_like_b0 b1/b1.mnc $MTsat_im_base\n\n";
-  `MTsat-T1_JC.pl $MTW_like_b0 $PDW_like_b0 $T1W_like_b0 b1/b1.mnc $MTsat_im_base`;
+  # now resample the hig res MTsat iamges to lower res to match diffusion
+  print "mincresample -tfm_input_sampling MTsat_images-hr_MTsat.mnc -like $anat_to_diff_mnc $MTsat_im\n";
+  `mincresample -tfm_input_sampling MTsat_images-hr_MTsat.mnc -like $anat_to_diff_mnc $MTsat_im`; 
 
   #DO: possibly clamp to positive values? prob not nec with mask (below); and can make mask mask those out if nec
 
@@ -593,8 +610,8 @@ if ($doing_MTsat==1) {
 
   print "NODDI_g $noddi_ficvf_mnc $noddi_fiso_mnc $MTsat_im $outbase $scale_MTsat $brainmask_MTsat\n\n";
   `NODDI_g $noddi_ficvf_mnc $noddi_fiso_mnc $MTsat_im $outbase $scale_MTsat $brainmask_MTsat`;
-  print "minc_modify_header -sinsert :history=g-ratio_pipeline.pl @ARGV $g_name\n";
-  `minc_modify_header -sinsert :history="g-ratio_pipeline.pl @ARGV" $g_name`;
+  print "minc_modify_header -sinsert :history=$program @ARGV $g_name\n";
+  `minc_modify_header -sinsert :history="$program @ARGV" $g_name`;
 
 if ($nrx==0){
     print "mincmath -mult WM.mnc brainmask_MTsat.mnc WM_MTsatmasked.mnc\n";
