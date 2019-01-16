@@ -69,11 +69,8 @@ $wm_pat = "/malfTissuePriors/*prob_cerebrum-wm_ISPC-stx152iso.mnc.gz";
 $t1p2stx_pat = "/RegisterToStandardSpace/*/*_t1p-to-stx152lsq6.xfm";
 $t1map2stx_pat = "/RegisterOtherModalities/*/*_t1gMPR-t1map-to-stx152lsq6.xfm";
 
-# If not 1st timepoint, we have other lesion masks and no t2lesion mask
-$denovo_pat = "/*_denovot2f_TREF-m00_ISPC-stx152iso.mnc.gz"; #new lesions
-$enlarg_pat = "/*_enlargingt2f_TREF-m00_ISPC-stx152iso.mnc.gz"; #enlarging
-$res_pat = "/*_rest2f_TREF-m00_ISPC-stx152iso.mnc.gz"; #resolving
-
+# If not 1st timepoint, we have other new T2 lesion mask as well, it has lesions that were not there at the previous time point
+$denovo_pat = "/*_newt2f_TREF-m*_ISPC-stx152iso.mnc.gz"; #new lesions
 
 if($0 =~ /[\/A-Za-z_0-9-]+\/([A-Za-z0-9_-]+\.pl)/) {$program = $1;}	#program name without path
 $Usage = <<USAGE;
@@ -114,7 +111,7 @@ print "\n---On loki---\n";
 if ($visit eq "m00"){
 	print "tar -cvf /tmp/$tar $dir$t2les_pat $dir$gd_pat $dir$wm_pat $dir$t1p2stx_pat $dir$t1map2stx_pat\n";
 }else{
-	print "tar -cvf /tmp/$tar $dir$gd_pat $dir$wm_pat $dir$t1p2stx_pat $dir$t1map2stx_pat $dir$denovo_pat $dir$enlarg_pat $dir$res_pat\n";
+	print "tar -cvf /tmp/$tar $dir$t2les_pat $dir$gd_pat $dir$wm_pat $dir$t1p2stx_pat $dir$t1map2stx_pat $dir$denovo_pat\n";
 }
 
 print "\nscp ileppert\@loki.bic.mni.mcgill.ca:/tmp/$tar .\n\n ";
@@ -141,8 +138,6 @@ if ($visit ne "m00"){
 	$dir_m00 = `\\ls -d $dir_m00_pat`; chomp($dir_m00);
 	$t2les_m00 = `\\ls $dir_m00$t2les_pat`; chomp($t2les_m00); 
 	$denovo = `\\ls $dir$denovo_pat`; chomp($denovo);
-	$enlarg = `\\ls $dir$enlarg_pat`; chomp($enlarg);
-	$res = `\\ls $dir$res_pat`; chomp($res);
 }
 
 
@@ -178,26 +173,9 @@ $b02stx="b0-to-stx.xfm";
 print "xfmconcat $diff2t1p $t1p2stx $b02stx\n";
 `xfmconcat $diff2t1p $t1p2stx $b02stx`;
 
-print "________________Depending how they were created, have to resample masks to full stx________________\n";
+print "________________Masks should now be resampled in full stx space (1x1x1mm3)________________\n";
 
-if ($visit eq "m00"){ #visit m00 has t2 lesions
-	if (-e $t2les){
-	## These now seem to be already in 1mm iso stx space
-	#($namebase,$dir,$ext)=fileparse($t2les,'\..*');
-	#$t2les_stx=$namebase."-stx152lsq6.mnc";
-	#print "mincresample $t2les -near -like $wm $t2les_stx\n";
-	#`minresample $t2les -near -like $wm $t2les_stx`;
-	#$t2les = $t2les_stx;
-	}else{die "----Can't find t2les mask\n";}
-}else{ #other visits have only denovo, enlarging, resolving lesions
-	print "________________Create t2lesion mask with m00 t2 + denovo + enlarging________________\n";
-	if (!-e $denovo){die "----Can't find denovo mask\n";}
-	if (!-e $enlarg){die "----Can't find enlarging lesion mask\n";}
-	if (!-e $res){die "----Can't find resolving lesion mask\n";}
-	$t2les = "ct2f-stx152iso.mnc"; #this is ALL t2 lesions
-	print "minccalc -expr A[0]+A[1]+A[2] $t2les_m00 $denovo $enlarg $t2les\n";
-	`minccalc -expr "A[0]+A[1]+A[2]" $t2les_m00 $denovo $enlarg $t2les`;
-}
+if !(-e $t2les){die "----Can't find t2les mask\n";} #all time points now have t2les masks and >m00 have a newt2 mask
 
 if (-e $gd){
 ($namebase,$dir,$ext)=fileparse($gd,'\..*');
@@ -213,14 +191,10 @@ if (-e $t1map2stx && -e $t1map_nat){
 	`mincresample $t1map_nat -like $wm -transform $t1map2stx $t1map` unless -e $t1map;
 }else{die "----Can't find T1map transformation or native T1map\n";}
 
-if (-e $t2les){
 print "________________Create a black-hole type mask, with a threshold on T1 (looks dark on lepto)________________\n";
 $blakh = "black-holes-thres$thresh-stx152lsq6iso.mnc";
 	print "minccalc -expr A[0]>$thresh && A[1]>=1  $t1map $t2les $blakh\n";
 	`minccalc -expr "A[0]>$thresh && A[1]>=1" $t1map $t2les $blakh` unless -e $blakh;
-
-}else{die "----Can't find T2les mask\n";}
-
 
 
 print "\n________________Make sure masks are mutually exclusive________________\n";
@@ -247,15 +221,13 @@ if (-e $gd && -e $wm){
 }
 
 
-
 print "\n________________Resample masks to native space________________\n";
 $t2les_diff="t2les-like-diff.mnc";
 $gdles_diff="gdles-like-diff.mnc";
 $bh_diff="blackh-like-diff.mnc";
 $wm_diff="wm-like-diff.mnc";
 $denovo_diff="denovo-like-diff.mnc";
-$enlarging_diff="enlarging-like-diff.mnc";
-$t2lesm00_diff="t2lesm00-like-diff.mnc"; #these are the old T2 lesions only (excluding new nad enlarging)
+$t2lesm00_diff="t2lesm00-like-diff.mnc"; #these are the old T2 lesions only 
 $denovo_diff_m00="denovo-like-diff_m00.mnc"; #this is resampled to the m00 timepoint diffusion
 $gdles_diff_m00 = "gdles-like-diff_m00.mnc"; #this is resampled to the m00 timepoint diffusion
 $gdles_m00_diff = "gdles_m00-like-diff.mnc"; #this is resampled to the current timepoint diffusion
@@ -275,8 +247,6 @@ print "mincresample -near -like $diff -transformation $b02stx -invert $wm_only $
 if ($visit ne "m00"){
 	print "mincresample -near -like $diff -transformation $b02stx -invert $denovo $denovo_diff\n";
     `mincresample -near -like $diff -transformation $b02stx -invert $denovo $denovo_diff`  unless -e $denovo_diff;
-    print "mincresample -near -like $diff -transformation $b02stx -invert $enlarg $enlarging_diff\n";
-    `mincresample -near -like $diff -transformation $b02stx -invert $enlarg $enlarging_diff`  unless -e $enlarging_diff;
     print "mincresample -near -like $diff -transformation $b02stx -invert $t2les_m00 $t2lesm00_diff\n";
     `mincresample -near -like $diff -transformation $b02stx -invert $t2les_m00 $t2lesm00_diff`  unless -e $t2lesm00_diff;
     ## bring the denovo mask back to m00 space to see what the params were
@@ -329,8 +299,8 @@ if ($visit eq "m00"){
 	@masks=($t2les_diff,$gdles_diff,$bh_diff,$wm_diff);
 	@masks_name=("t2les","gd","bh","wm");
 }else{
-	@masks=($t2lesm00_diff,$denovo_diff,$enlarging_diff,$gdles_diff,$bh_diff,$wm_diff);
-	@masks_name=("t2les","denovo","enlarging","gd","bh","wm");
+	@masks=($t2lesm00_diff,$denovo_diff,$gdles_diff,$bh_diff,$wm_diff);
+	@masks_name=("t2les","denovo","gd","bh","wm");
 }
 	
 for($m=0;$m<scalar(@maps);$m++) {
