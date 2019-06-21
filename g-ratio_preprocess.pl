@@ -42,7 +42,7 @@ print "---Get the list of sequences from the minc files---\n";
 `lsminc *.mnc.gz > mnclist` unless -e "mnclist";
 
 print "---Sort the dicom by sequence name and then sequence number-----\n";
-$dir=`\\ls -d NOVA*`; chomp($dir);#print "dir:$dir\n";
+$dir=`\\ls -d N*`; chomp($dir);#print "dir:$dir\n";
 print "sort_dicom.pl $dir/MR* '0018,1030' $dir/\n";
 `sort_dicom.pl $dir/MR* '0018,1030' $dir/`;
 `sort_dicom.pl $dir/MR* '0020,0011' $dir/`;
@@ -50,7 +50,7 @@ print "sort_dicom.pl $dir/MR* '0018,1030' $dir/\n";
 
 print "\n-----Convert the diffusion to nii----------\n";
 `mkdir nii`;
-$done=`\\ls nii/*b2500PANOVA*.nii.gz`; chomp($done); 
+$done=`\\ls nii/*b2500PAN*.nii.gz`; chomp($done); 
 unless (-e $done) {
     `dcm2nii -o nii $dir/cmrr_mbep2d_diff_acc6_b300/*` ;
     `dcm2nii -o nii $dir/cmrr_mbep2d_diff_acc6_b300_PA/*`;
@@ -80,5 +80,5 @@ print "\n--- Get the necessary inputs for the processing----\n";
 @b1_120 = split(/\s+/,$B1_120[0]);
 
 print "------\n";
-print "g-ratio_pipeline-repeatlesions.pl -diff nii/*{b300,b700,b2500,b300PA,b700PA,b2500PA}NOVA*.nii.gz -bvecs nii/*{b300,b700,b2500,b300PA,b700PA,b2500PA}NOVA*.bvec -anat nii/201*3DT1wPreGd*.nii.gz  $preGd[0] -MTsat $MT[0] $PD[0] $T1w[0] -B1 $b1_60[0] $b1_120[0]> log-reg-to-t1p\n\n";
+print "g-ratio_pipeline-repeatlesions.pl -diff nii/*{b300,b700,b2500,b300PA,b700PA,b2500PA}N*.nii.gz -bvecs nii/*{b300,b700,b2500,b300PA,b700PA,b2500PA}N*.bvec -anat nii/201*3DT1wPreGd*.nii.gz  $preGd[0] -MTsat $MT[0] $PD[0] $T1w[0] -B1 $b1_60[0] $b1_120[0]> log-reg-to-t1p\n\n";
 print "------\n";
