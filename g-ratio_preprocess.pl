@@ -64,7 +64,7 @@ print "\n---Convert the T1w-PreGd to nii-----------\n";
 @preGd = split(/\s+/,$preGd_all[1]);
 @T1w = split(/\s+/,$preGd_all[0]);
 
-if ($preGd[0]=~/_(\d+)d1_/){$preGd_s=$1 } else {die "can't find series #\n";}
+if ($preGd[0]=~/_(\d+)d1_/){$preGd_s=$1 } else {die "can't find the series # for pre-Gd\n";}
 #print "dcm2nii -o nii $dir/$preGd_s/*\n";
 $done=`\\ls nii/201*3DT1wPreGd*.nii.gz`; chomp($done); 
 `dcm2nii -o nii $dir/$preGd_s/*` unless -e $done;
