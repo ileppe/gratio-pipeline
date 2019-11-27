@@ -16,7 +16,7 @@
 
 ##########################################################
 ##########################################################
-## The lesion masks from NeuroRx are in stx space, want ot bring them back to native diffusion space
+## The lesion masks from NeuroRx are in stx space
 ## convention: 
 ## X = 1st inital x=2nd initial d=patient number mxx=month time point
 ## m00
@@ -116,7 +116,7 @@ if ($visit eq "m00"){
 
 print "\nscp ileppert\@loki.bic.mni.mcgill.ca:/tmp/$tar .\n\n ";
 unless (-e $tar){
-	die "---> first download the data from loki\n";
+	die "---> first download the data from loki, there should be 4 files for m00 or 6 files for >m00\n";
 }
 
 `tar xvf $tar`;
@@ -175,7 +175,7 @@ print "xfmconcat $diff2t1p $t1p2stx $b02stx\n";
 
 print "________________Masks should now be resampled in full stx space (1x1x1mm3)________________\n";
 
-if !(-e $t2les){die "----Can't find t2les mask\n";} #all time points now have t2les masks and >m00 have a newt2 mask
+if (!-e $t2les){die "----Can't find t2les mask\n";} #all time points now have t2les masks and >m00 have a newt2 mask
 
 if (-e $gd){
 ($namebase,$dir,$ext)=fileparse($gd,'\..*');
