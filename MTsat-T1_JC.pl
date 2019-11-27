@@ -69,6 +69,7 @@ $Aapp=$output_base."_Aapp.mnc";
 
 `minccalc -float -nocheck_dimensions -expr "clamp(0.5*(A[0]*$a_t1w_r/$TR_t1w-A[1]*$a_pdw_r/$TR_pdw)/(A[1]/$a_pdw_r-A[0]/$a_t1w_r),-10,100)" $t1w $pdw $r1app `;
 
+#`minccalc -float -nocheck_dimensions -expr "clamp(0.5*(A[0]*$a_t1w_r/$TR_t1w-A[1]*$a_pdw_r/$TR_pdw)/(A[1]/$a_pdw_r-A[0]/$a_t1w_r),-10,10)" $t1w $pdw $r1app `;
 
 `minccalc -float -nocheck_dimensions -expr "clamp(A[0]*A[1]*($TR_pdw*$a_t1w_r/$a_pdw_r-$TR_t1w*$a_pdw_r/$a_t1w_r)/(A[1]*$TR_pdw*$a_t1w_r-A[0]*$TR_t1w*$a_pdw_r),-10000,15000)" $pdw $t1w $Aapp `;
 
@@ -78,6 +79,7 @@ $sapp=$output_base."_MTsat_uncorr.mnc";
 
 
 `minccalc -float -nocheck_dimensions -expr "clamp(100*((A[0]*$a_MTw_r/A[1]-1)*A[2]*$TR_MTw - $a_MTw_r*$a_MTw_r/2),0,50)" $Aapp $MTw $r1app $sapp `;
+#`minccalc -float -nocheck_dimensions -expr "clamp(100*((A[0]*$a_MTw_r/A[1]-1)*A[2]*$TR_MTw - $a_MTw_r*$a_MTw_r/2),0,5)" $Aapp $MTw $r1app $sapp `;
 
 
 $MTsatcorr=$output_base."_MTsat.mnc";
@@ -86,3 +88,4 @@ $MTsatcorr=$output_base."_MTsat.mnc";
 
 `minccalc -float -nocheck_dimensions  -expr "clamp(A[0]*(1-0.4)/(1-0.4*A[1]),0,50)" $sapp $B1map $MTsatcorr`;
 
+#`minccalc -float -nocheck_dimensions  -expr "clamp(A[0]*(1-0.4)/(1-0.4*A[1]),0,5)" $sapp $B1map $MTsatcorr`;
