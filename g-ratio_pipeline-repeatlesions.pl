@@ -41,15 +41,15 @@ $scale_MTsat=0.121;# by empirically trying to get mvf ~0.3 in WM of a control
  
 
 #presets: DO: must create these from the inputs. these are currently hardcoded; links are for last thing processed
-$acq="/data_/qc/ilana/for-others/repeat-lesions/acqparams.txt";
+$acq="/data/MRS_Remyelination/ilana/repeat-lesions/acqparams.txt";
 
 # Merged bvecs and bvals: ## bvecs has to be made for each dataset independently, because of angulation
 #$bvecs="/export02/data/ilana/for-others/repeat-lesions/bvecs";# 10(b300)A-P; 10(b300)P-A;30(b700)A-P; 30(b700)P-A; 64(b2500)A-P; 64(b2500)P-A; DWIs have 1 b=0
-$bvals="/data_/qc/ilana/for-others/repeat-lesions/bvals";
+$bvals="/data/MRS_Remyelination/ilana/repeat-lesions/bvals";
 
 
 # index file that tells eddy which line/of the lines in the acqparams.txt file that are relevant for the data passed into eddy.
-$index="/data_/qc/ilana/for-others/repeat-lesions/index.txt"; # 10(b300)A-P; 10(b300)P-A;30(b700)A-P; 30(b700)P-A; 64(b2500)A-P; 64(b2500)P-A; DWIs have 1 b=0
+$index="/data/MRS_Remyelination/ilana/repeat-lesions/index.txt"; # 10(b300)A-P; 10(b300)P-A;30(b700)A-P; 30(b700)P-A; 64(b2500)A-P; 64(b2500)P-A; DWIs have 1 b=0
 
 # NEEd this for AMICO, should be made with the the bvecs (after eddy) and bvals bvecs_bvals2camino.pl
 #$scheme="NODDI.scheme"; #appended to the data dir
